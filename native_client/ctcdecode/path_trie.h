@@ -8,10 +8,7 @@
 #include <vector>
 
 #include "fst/fstlib.h"
-
-#ifdef DEBUG
 #include "alphabet.h"
-#endif
 
 /* Trie tree for prefix storing and manipulating, with a dictionary in
  * finite-state transducer for spelling correction.
@@ -24,22 +21,23 @@ public:
   ~PathTrie();
 
   // get new prefix after appending new char
-  PathTrie* get_path_trie(int new_char, int new_timestep, float log_prob_c, bool reset = true);
+  PathTrie* get_path_trie(unsigned int new_char, unsigned int new_timestep, float log_prob_c, bool reset = true);
 
   // get the prefix data in correct time order from root to current node
-  void get_path_vec(std::vector<int>& output, std::vector<int>& timesteps);
+  void get_path_vec(std::vector<unsigned int>& output, std::vector<unsigned int>& timesteps);
 
   // get the prefix data in correct time order from beginning of last grapheme to current node
-  PathTrie* get_prev_grapheme(std::vector<int>& output,
-                              std::vector<int>& timesteps);
+  PathTrie* get_prev_grapheme(std::vector<unsigned int>& output,
+                              std::vector<unsigned int>& timesteps,
+                              const Alphabet& alphabet);
 
   // get the distance from current node to the first codepoint boundary, and the byte value at the boundary
-  int distance_to_codepoint_boundary(unsigned char *first_byte);
+  int distance_to_codepoint_boundary(unsigned char *first_byte, const Alphabet& alphabet);
 
   // get the prefix data in correct time order from beginning of last word to current node
-  PathTrie* get_prev_word(std::vector<int>& output,
-                          std::vector<int>& timesteps,
-                          int space_id);
+  PathTrie* get_prev_word(std::vector<unsigned int>& output,
+                          std::vector<unsigned int>& timesteps,
+                          const Alphabet& alphabet);
 
   // update log probs
   void iterate_to_vec(std::vector<PathTrie*>& output);
@@ -66,8 +64,8 @@ public:
   float log_prob_c;
   float score;
   float approx_ctc;
-  int character;
-  int timestep;
+  unsigned int character;
+  unsigned int timestep;
   PathTrie* parent;
 
 private:
@@ -75,12 +73,11 @@ private:
   bool exists_;
   bool has_dictionary_;
 
-  std::vector<std::pair<int, PathTrie*>> children_;
+  std::vector<std::pair<unsigned int, PathTrie*>> children_;
 
   // pointer to dictionary of FST
   std::shared_ptr<FstType> dictionary_;
   FstType::StateId dictionary_state_;
-  // true if finding ars in FST
   std::shared_ptr<fst::SortedMatcher<FstType>> matcher_;
 };
 

@@ -35,19 +35,10 @@ PathTrie::~PathTrie() {
   }
 }
 
-PathTrie* PathTrie::get_path_trie(int new_char, int new_timestep, float cur_log_prob_c, bool reset) {
+PathTrie* PathTrie::get_path_trie(unsigned int new_char, unsigned int new_timestep, float cur_log_prob_c, bool reset) {
   auto child = children_.begin();
-  for (child = children_.begin(); child != children_.end(); ++child) {
+  for (; child != children_.end(); ++child) {
     if (child->first == new_char) {
-      // If existing child matches this new_char but had a lower probability,
-      // and it's a leaf, update its timestep to new_timestep.
-      // The leak check makes sure we don't update the child to have a later
-      // timestep than a grandchild.
-      if (child->second->log_prob_c < cur_log_prob_c &&
-          child->second->children_.size() == 0) {
-        child->second->log_prob_c = cur_log_prob_c;
-        child->second->timestep = new_timestep;
-      }
       break;
     }
   }
@@ -111,7 +102,7 @@ PathTrie* PathTrie::get_path_trie(int new_char, int new_timestep, float cur_log_
   }
 }
 
-void PathTrie::get_path_vec(std::vector<int>& output, std::vector<int>& timesteps) {
+void PathTrie::get_path_vec(std::vector<unsigned int>& output, std::vector<unsigned int>& timesteps) {
   // Recursive call: recurse back until stop condition, then append data in
   // correct order as we walk back down the stack in the lines below.
   if (parent != nullptr) {
@@ -123,8 +114,9 @@ void PathTrie::get_path_vec(std::vector<int>& output, std::vector<int>& timestep
   }
 }
 
-PathTrie* PathTrie::get_prev_grapheme(std::vector<int>& output,
-                                      std::vector<int>& timesteps)
+PathTrie* PathTrie::get_prev_grapheme(std::vector<unsigned int>& output,
+                                      std::vector<unsigned int>& timesteps,
+                                      const Alphabet& alphabet)
 {
   PathTrie* stop = this;
   if (character == ROOT_) {
@@ -132,41 +124,40 @@ PathTrie* PathTrie::get_prev_grapheme(std::vector<int>& output,
   }
   // Recursive call: recurse back until stop condition, then append data in
   // correct order as we walk back down the stack in the lines below.
-  //FIXME: use Alphabet instead of hardcoding +1 here
-  if (!byte_is_codepoint_boundary(character + 1)) {
-    stop = parent->get_prev_grapheme(output, timesteps);
+  if (!byte_is_codepoint_boundary(alphabet.DecodeSingle(character)[0])) {
+    stop = parent->get_prev_grapheme(output, timesteps, alphabet);
   }
   output.push_back(character);
   timesteps.push_back(timestep);
   return stop;
 }
 
-int PathTrie::distance_to_codepoint_boundary(unsigned char *first_byte)
+int PathTrie::distance_to_codepoint_boundary(unsigned char *first_byte,
+                                             const Alphabet& alphabet)
 {
-  //FIXME: use Alphabet instead of hardcoding +1 here
-  if (byte_is_codepoint_boundary(character + 1)) {
+  if (byte_is_codepoint_boundary(alphabet.DecodeSingle(character)[0])) {
     *first_byte = (unsigned char)character + 1;
     return 1;
   }
   if (parent != nullptr && parent->character != ROOT_) {
-    return 1 + parent->distance_to_codepoint_boundary(first_byte);
+    return 1 + parent->distance_to_codepoint_boundary(first_byte, alphabet);
   }
   assert(false); // unreachable
   return 0;
 }
 
-PathTrie* PathTrie::get_prev_word(std::vector<int>& output,
-                                  std::vector<int>& timesteps,
-                                  int space_id)
+PathTrie* PathTrie::get_prev_word(std::vector<unsigned int>& output,
+                                  std::vector<unsigned int>& timesteps,
+                                  const Alphabet& alphabet)
 {
   PathTrie* stop = this;
-  if (character == space_id || character == ROOT_) {
+  if (character == alphabet.GetSpaceLabel() || character == ROOT_) {
     return stop;
   }
   // Recursive call: recurse back until stop condition, then append data in
   // correct order as we walk back down the stack in the lines below.
   if (parent != nullptr) {
-    stop = parent->get_prev_word(output, timesteps, space_id);
+    stop = parent->get_prev_word(output, timesteps, alphabet);
   }
   output.push_back(character);
   timesteps.push_back(timestep);
@@ -234,7 +225,7 @@ void PathTrie::print(const Alphabet& a) {
   for (PathTrie* el : chain) {
     printf("%X ", (unsigned char)(el->character));
     if (el->character != ROOT_) {
-      tr.append(a.StringFromLabel(el->character));
+      tr.append(a.DecodeSingle(el->character));
     }
   }
   printf("\ntimesteps:\t ");
